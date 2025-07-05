@@ -1,103 +1,209 @@
-import Image from "next/image";
+'use client';
+
+import { useChat } from 'ai/react';
+import { useState } from 'react';
+import { 
+  Send, 
+  Sparkles, 
+  Zap, 
+  Palette, 
+  Code, 
+  Figma,
+  MessageSquare,
+  Loader2
+} from 'lucide-react';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat();
+  const [isExpanded, setIsExpanded] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      {/* Header */}
+      <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-xl font-medium text-gray-900">
+                KOGA AI
+              </h1>
+              <span className="px-2 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full">
+                Beta
+              </span>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <Figma className="w-4 h-4" />
+                <span>Connected</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
+        {messages.length === 0 && (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <Zap className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-3xl font-medium text-gray-900 mb-4">
+              Design with AI, Code with Confidence
+            </h2>
+            <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
+              Create beautiful UI designs using natural language. KOGA AI understands your vision and brings it to life in Figma, then generates production-ready code.
+            </p>
+            
+            {/* Feature Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+              <div className="p-6 bg-white rounded-2xl shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <MessageSquare className="w-6 h-6 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Natural Language Design
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Describe your UI in plain English and watch it come to life
+                </p>
+              </div>
+              
+              <div className="p-6 bg-white rounded-2xl shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+                <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <Palette className="w-6 h-6 text-green-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Live Figma Integration
+                </h3>
+                <p className="text-sm text-gray-600">
+                  See your designs appear in real-time in Figma workspace
+                </p>
+              </div>
+              
+              <div className="p-6 bg-white rounded-2xl shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <Code className="w-6 h-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Production Code Export
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Get clean HTML, CSS, and React code ready for deployment
+                </p>
+              </div>
+            </div>
+
+            {/* Example Prompts */}
+            <div className="text-left max-w-md mx-auto space-y-3">
+              <p className="text-sm font-medium text-gray-700 mb-3">
+                Try these examples:
+              </p>
+              {[
+                "Create a modern login form with email and password fields",
+                "Design a pricing card with three tiers",
+                "Make a hero section with a call-to-action button"
+              ].map((example, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    handleInputChange({ target: { value: example } } as any);
+                    setIsExpanded(true);
+                  }}
+                  className="w-full text-left p-3 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all text-sm text-gray-700 hover:text-blue-600"
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chat Messages */}
+        <div className="space-y-6 mb-8">
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-slide-up`}
+            >
+              <div
+                className={`max-w-3xl px-4 py-3 rounded-2xl ${
+                  message.role === 'user'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white text-gray-900 shadow-md border border-gray-200'
+                }`}
+              >
+                {message.role === 'assistant' && (
+                  <div className="flex items-center space-x-2 mb-2">
+                    <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                      <Sparkles className="w-3 h-3 text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-600">KOGA AI</span>
+                  </div>
+                )}
+                <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {message.content}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex justify-start animate-slide-up">
+            <div className="bg-white rounded-2xl px-4 py-3 shadow-md border border-gray-200">
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 text-white" />
+                </div>
+                <span className="text-sm font-medium text-gray-600">KOGA AI</span>
+              </div>
+              <div className="flex items-center space-x-2 mt-2">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                <span className="text-sm text-gray-600">
+                  Creating your design...
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Input Form */}
+        <div className="sticky bottom-0 pt-4">
+          <form onSubmit={handleSubmit} className="relative">
+            <div className="relative bg-white rounded-2xl shadow-lg border border-gray-200 focus-within:border-blue-400 focus-within:shadow-xl transition-all">
+              <textarea
+                value={input}
+                onChange={handleInputChange}
+                onFocus={() => setIsExpanded(true)}
+                placeholder="Describe the UI you want to create..."
+                className="w-full px-6 py-4 text-sm text-gray-900 placeholder-gray-500 bg-transparent border-none rounded-2xl resize-none focus:outline-none"
+                rows={isExpanded ? 3 : 1}
+                style={{ minHeight: isExpanded ? '96px' : '56px' }}
+              />
+              <div className="absolute right-2 bottom-2 flex items-center space-x-2">
+                <div className="flex items-center space-x-1 text-xs text-gray-500">
+                  <span>⌘</span>
+                  <span>⏎</span>
+                </div>
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="w-8 h-8 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors shadow-md"
+                >
+                  <Send className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
