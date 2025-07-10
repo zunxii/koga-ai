@@ -51,7 +51,7 @@ export default function FigmaCanvas({ onCodeExecute, generatedCode }: FigmaCanva
           return nodes.filter(callback);
         }
       },
-      
+        
       createFrame: () => ({
         id: `frame_${Date.now()}`,
         type: 'FRAME' as const,

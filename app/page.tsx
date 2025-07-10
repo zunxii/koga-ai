@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Header from '@/components/Header';
 import Welcome from '@/components/Welcome';
 import Features from '@/components/Features';
@@ -17,6 +17,27 @@ export interface Message {
   timestamp: Date;
 }
 
+export interface ChatResponse {
+  success: boolean;
+  response?: string;
+  message?: string;
+  error?: string;
+  filePath?: string;
+  codeGenerated?: boolean;
+}
+
+// Helper function to create safe message objects
+const createMessage = (
+  role: 'user' | 'assistant',
+  content: string,
+  id?: string
+): Message => ({
+  id: id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+  role,
+  content: content || '',
+  timestamp: new Date(),
+});
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -26,25 +47,44 @@ export default function Home() {
   const [showCanvas, setShowCanvas] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const extractCodeFromResponse = (response: string): string => {
-    // Extract TypeScript code from the response
-    const codeMatch = response.match(/```(?:typescript|ts|javascript|js)?\n([\s\S]*?)```/);
-    if (codeMatch) {
-      return codeMatch[1].trim();
-    }
-    
-    // Try to extract from JSON block
-    const jsonMatch = response.match(/```json\n([\s\S]*?)```/);
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[1]);
-        return parsed.code || '';
-      } catch (e) {
-        return '';
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
+    };
+  }, []);
+
+  const extractCodeFromResponse = (response: string | undefined | null): string => {
+    if (!response || typeof response !== 'string') {
+      return '';
     }
-    
-    return '';
+
+    try {
+      // Extract TypeScript code from the response
+      const codeMatch = response.match(/```(?:typescript|ts|javascript|js)?\n([\s\S]*?)```/);
+      if (codeMatch && codeMatch[1]) {
+        return codeMatch[1].trim();
+      }
+      
+      // Try to extract from JSON block
+      const jsonMatch = response.match(/```json\n([\s\S]*?)```/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          return parsed.code || '';
+        } catch (e) {
+          console.warn('Failed to parse JSON code block:', e);
+          return '';
+        }
+      }
+      
+      return '';
+    } catch (error) {
+      console.error('Error extracting code from response:', error);
+      return '';
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -53,6 +93,11 @@ export default function Home() {
 
   const generateFigmaCode = async (userMessage: string): Promise<string> => {
     try {
+      // Cancel any existing request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
       abortControllerRef.current = new AbortController();
       
       const response = await fetch('/api/chat', {
@@ -62,20 +107,28 @@ export default function Home() {
         },
         body: JSON.stringify({
           message: userMessage,
-          history: messages.map(m => ({
-            role: m.role,
-            content: m.content
-          }))
+          history: messages
+            .filter(m => m && m.content && typeof m.content === 'string') // Filter valid messages
+            .map(m => ({
+              role: m.role,
+              content: m.content
+            }))
         }),
         signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
-      const data = await response.json();
-      return data.response;
+      const data: ChatResponse = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Unknown error occurred');
+      }
+
+      return data.response || data.message || 'Code generated successfully';
     } catch (error: any) {
       if (error.name === 'AbortError') {
         throw new Error('Request was cancelled');
@@ -94,26 +147,14 @@ export default function Home() {
     setIsLoading(true);
 
     // Add user message
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: userMessage,
-      timestamp: new Date()
-    };
-
+    const userMsg = createMessage('user', userMessage);
     setMessages(prev => [...prev, userMsg]);
 
     try {
       const assistantResponse = await generateFigmaCode(userMessage);
       
       // Add assistant message
-      const assistantMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: assistantResponse,
-        timestamp: new Date()
-      };
-
+      const assistantMsg = createMessage('assistant', assistantResponse);
       setMessages(prev => [...prev, assistantMsg]);
       
       // Extract and set the generated code
@@ -123,14 +164,13 @@ export default function Home() {
         setShowCanvas(true);
       }
     } catch (error: any) {
+      console.error('Chat error:', error);
+      
       // Add error message
-      const errorMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `Sorry, I encountered an error: ${error.message}`,
-        timestamp: new Date()
-      };
-
+      const errorMsg = createMessage(
+        'assistant',
+        `Sorry, I encountered an error: ${error.message}`
+      );
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
@@ -139,8 +179,17 @@ export default function Home() {
   };
 
   const handleExampleClick = (example: string) => {
-    setInput(example);
-    setIsExpanded(true);
+    if (example && typeof example === 'string') {
+      setInput(example);
+      setIsExpanded(true);
+    }
+  };
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -163,7 +212,9 @@ export default function Home() {
             )}
 
             {/* Chat Messages */}
-            <ChatMessages messages={messages} />
+            <ChatMessages 
+              messages={messages.filter(m => m && m.content !== undefined)} 
+            />
 
             {/* Loading Spinner */}
             {isLoading && <LoadingState />}
@@ -190,7 +241,8 @@ export default function Home() {
                 <h2 className="text-lg font-semibold text-gray-900">Design Canvas</h2>
                 <button
                   onClick={() => setShowCanvas(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="Close canvas"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -200,7 +252,11 @@ export default function Home() {
               <div className="flex-1">
                 <FigmaCanvas 
                   generatedCode={generatedCode}
-                  onCodeExecute={(code) => setGeneratedCode(code)}
+                  onCodeExecute={(code) => {
+                    if (code && typeof code === 'string') {
+                      setGeneratedCode(code);
+                    }
+                  }}
                 />
               </div>
             </div>

@@ -1,0 +1,9 @@
+{
+  "name": "KOGA Plugin",
+  "id": "koga-plugin",
+  "api": "1.0.0",
+  "main": "code.ts",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "permissions": ["currentuser", "activeusers"]
+}

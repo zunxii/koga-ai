@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
+import { existsSync } from 'fs';
 
-// Initialize the Google Gemini model
 const model = new ChatGoogleGenerativeAI({
   model: 'gemini-2.0-flash',
   temperature: 0.7,
@@ -12,99 +14,129 @@ const model = new ChatGoogleGenerativeAI({
 
 const outputParser = new StringOutputParser();
 
-// System prompt for Figma code generation
-const SYSTEM_PROMPT = `You are KOGA AI, an expert AI assistant that generates Figma plugin code based on user descriptions. 
+const SYSTEM_PROMPT = `You are KOGA AI, an expert at generating Figma plugin code from user descriptions.
 
-Your role is to:
-1. Convert natural language UI descriptions into TypeScript code that can be executed in a Figma-like canvas
-2. Generate clean, functional code that creates UI elements using Figma API methods
-3. Focus on creating practical, working code that will render in the canvas
-4. DO NOT wrap code in JSON blocks - provide raw TypeScript code only
+When generating code:
+1. Write clean, working TypeScript code for Figma plugins
+2. Use proper Figma API methods: figma.createFrame(), figma.createText(), etc.
+3. Include proper error handling
+4. Make code that runs in the Figma plugin context
 
-Guidelines for code generation:
-- Use Figma API methods like figma.createFrame(), figma.createText(), figma.createRectangle(), figma.createEllipse()
-- Set proper dimensions, colors, and styling properties
-- Position elements logically with x, y coordinates
-- Use proper color values (0-1 range for RGB)
-- Create responsive layouts when appropriate
-- Include meaningful names for elements
+Format your response as:
+- First, provide a brief explanation of what the code does
+- Then, wrap the code in triple backticks with typescript language tag
 
-Available Figma API methods:
-- figma.createFrame(): Creates a frame container
-- figma.createRectangle(): Creates a rectangle shape
-- figma.createEllipse(): Creates an ellipse/circle
-- figma.createText(): Creates text elements
-- figma.currentPage.appendChild(node): Adds element to canvas
+Example:
+\`\`\`typescript
+// Create a red rectangle
+const rect = figma.createRectangle();
+rect.fills = [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 } }];
+rect.resize(100, 100);
+figma.currentPage.appendChild(rect);
+\`\`\`
 
-Example code structure:
-const frame = figma.createFrame();
-frame.name = "Login Form";
-frame.x = 100;
-frame.y = 100;
-frame.width = 300;
-frame.height = 400;
-frame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-figma.currentPage.appendChild(frame);
+Do NOT include figma.showUI() or figma.closePlugin() in your code - these are handled by the plugin wrapper.`;
 
-const button = figma.createRectangle();
-button.name = "Submit Button";
-button.x = 120;
-button.y = 320;
-button.width = 160;
-button.height = 40;
-button.fills = [{ type: "SOLID", color: { r: 0.2, g: 0.4, b: 0.8 } }];
-button.cornerRadius = 8;
-figma.currentPage.appendChild(button);
-
-Always provide working TypeScript code that creates visual elements on the canvas.`;
 export async function POST(request: NextRequest) {
   try {
-    const { message, history } = await request.json();
+    const body = await request.json();
+    const { message, history } = body;
 
     if (!message || typeof message !== 'string') {
-      return NextResponse.json(
-        { error: 'Message is required and must be a string' },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Message is required and must be a string' 
+      }, { status: 400 });
     }
 
+    if (!process.env.GOOGLE_API_KEY) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Google API key is not configured' 
+      }, { status: 500 });
+    }
+
+    // Build message history
     const messages = [
       new SystemMessage(SYSTEM_PROMPT),
-      ...(history || []).map((msg: any) => 
-        msg.role === 'user' 
-          ? new HumanMessage(msg.content)
-          : new AIMessage(msg.content)
-      ),
-      new HumanMessage(message)
+      ...(Array.isArray(history) ? history : []).map((msg: any) => {
+        if (msg.role === 'user') {
+          return new HumanMessage(msg.content);
+        } else {
+          return new AIMessage(msg.content);
+        }
+      }),
+      new HumanMessage(message),
     ];
 
-    // Create the chain and invoke directly
     const chain = model.pipe(outputParser);
     const response = await chain.invoke(messages);
 
-    return NextResponse.json({ response });
+    // Ensure response is a string
+    if (typeof response !== 'string') {
+      throw new Error('Invalid response from AI model');
+    }
+
+    // Extract code from response
+    const codeMatch = response.match(/```typescript\n([\s\S]*?)```/) || 
+                     response.match(/```javascript\n([\s\S]*?)```/) ||
+                     response.match(/```\n([\s\S]*?)```/);
+    
+    let extractedCode = '';
+    if (codeMatch && codeMatch[1]) {
+      extractedCode = codeMatch[1].trim();
+    }
+
+    // Create plugin code wrapper
+    const pluginCode = `/// <reference types="@figma/plugin-typings" />
+
+// Plugin generated by KOGA AI
+figma.showUI(__html__, { visible: false });
+
+figma.ui.onmessage = async (msg) => {
+  if (msg.type === 'run-code') {
+    try {
+      // Generated code starts here
+      ${extractedCode || '// No code extracted from response'}
+      
+      // Select all created nodes
+      const nodes = figma.currentPage.selection;
+      if (nodes.length > 0) {
+        figma.viewport.scrollAndZoomIntoView(nodes);
+      }
+      
+      figma.closePlugin("Code executed successfully!");
+    } catch (error) {
+      console.error('Plugin error:', error);
+      figma.closePlugin("Error: " + error.message);
+    }
+  }
+};
+`;
+
+    // Ensure plugin directory exists
+    const pluginDir = path.join(process.cwd(), 'plugin');
+    if (!existsSync(pluginDir)) {
+      await mkdir(pluginDir, { recursive: true });
+    }
+
+    // Write to code.ts file
+    const filePath = path.join(pluginDir, 'code.ts');
+    await writeFile(filePath, pluginCode.trim(), 'utf8');
+
+    return NextResponse.json({ 
+      success: true, 
+      response: response || 'Code generated successfully',
+      message: response || 'Code generated successfully',
+      filePath: filePath,
+      codeGenerated: !!extractedCode
+    });
 
   } catch (error: any) {
-    console.error('Error in chat API:', error);
-    
-    // Handle specific errors
-    if (error.message?.includes('API key')) {
-      return NextResponse.json(
-        { error: 'Invalid API key configuration' },
-        { status: 401 }
-      );
-    }
-
-    if (error.message?.includes('rate limit')) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: 'Failed to generate response. Please try again.' },
-      { status: 500 }
-    );
+    console.error('API Error:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message || 'Failed to generate plugin code' 
+    }, { status: 500 });
   }
 }

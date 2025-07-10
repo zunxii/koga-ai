@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <label>Label:</label>
+    <input id="label" placeholder="Enter text..." />
+    <button id="create">Create</button>
+
+    <script>
+      document.getElementById("create").onclick = () => {
+        const label = document.getElementById("label").value;
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: "create-shape-with-text",
+              label: label,
+            },
+          },
+          "*"
+        );
+      };
+    </script>
+  </body>
+</html>
